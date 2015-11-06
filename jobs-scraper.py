@@ -1,20 +1,46 @@
-import re
+'''
+Author: swollentongue (at) gmail.com
+Date Dec, 2015
+
+Simple water and wastewater laboratory jobs scraper. 
+
+TODO:
+* Add CWEA, Government Jobs and Indeed scrapers
+* generalize scraper into it's own class (or at least modularize the the scrapers into their own classes)
+* Add more robust decision logic for which jobs to choose (perhaps using the posted job description)
+
+'''
+
+import random
 import time
 import os
+import re
 import smtplib
+from craigslist import CraigslistJobs
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
 from email.MIMEText import MIMEText
 from email import Encoders
-from craigslist import CraigslistJobs
 
+def scrape_cljobs(search_terms, places=['sfbay', 'eugene', 'seattle', 'boise', 'slo', 'monterey']):
+    for place, term in [(place, term) for place in places for term in search_terms]:
+        time.sleep(random.randrange(1,10)) # throttle requests
+        print 'Searching: {} for {}'.format(place, term)
+        cl_jobsearch = CraigslistJobs(site=place, filters={'query':term, 'posted_today':'1'})
+        cl_jobs_generator = cl_jobsearch.get_results(sort_by='newest')
+        cl_jobs = [i for i in cl_jobs_generator]
+        print 'number of results: {}'.format(str(len(cl_jobs)))
+        for job in cl_jobs:
+            job_title = job['name'].encode('utf-8')
+            print 'checking: {}'.format(job_title)
+            if filter_title(job_title):
+                job_info = [job_title, job['where'], job['url']]
+                job_list.append(job_info)
+            seen_titles.add("{} {}".format(job_title, job['url']))
 
-gmail_user = "EMAIL_ADDRESS"
-gmail_pwd = "PASSWORD"
-email_announce = [] # add who you want to recieve updates
-job_list = []
-job_kws = ('environmental', 'environment', 'laboratory', 'lab', 'biotech', 'bio tech', 'bio-tech')
-
+def scrape_cwea():
+    
+    
 def get_ngrams(text, ngram_range=(1, 3)):
     '''
     Takes a list of words and returns a list of ngrams within the ngram range.
@@ -40,7 +66,6 @@ def mail(to, subject, text, attach=None):
 
     msg['From'] = gmail_user
     msg['To'] = to
-    # msg['CC'] = gmail_user
     msg['Subject'] = subject
 
     msg.attach(MIMEText(text))
@@ -62,19 +87,16 @@ def mail(to, subject, text, attach=None):
     mailServer.close()
 
 if __name__ == '__main__':
-    # probably should generalize this to take a list of sites and search queries
-    cl_water = CraigslistJobs(site='sfbay', filters={'query':'water', 'posted_today':'1'})
-    cl_waterjobs_generator = cl_water.get_results(sort_by='newest')
-    cl_waterjobs = [i for i in cl_waterjobs_generator]
-
-    for job in cl_waterjobs:
-        if filter_title(job['name']):
-            job_info = [job['name'], job['where'], job['url']]
-            job_list.append(job_info)
+    gmail_user = "EMAIL_ADDRESS"
+    gmail_pwd = "PASSWORD"
+    job_list = []
+    seen_titles = set()
+    job_kws = ('environmental', 'environment', 'laboratory', 'lab', 'biotech', 'bio tech', 'bio-tech')
+    # scrape_cljobs(['water', 'wastewater'])
+    scrape_cwea()
 
     email_msg = ''
     for job in job_list:
         email_msg += "{}\n({})\n{}\n\n".format(*job)
-
-    for email in email_announce:
-        mail(email, 'Water Jobs for {}'.format(time.strftime("%x")), email_msg)
+    # mail('swollentongue@gmail.com, cmgenualdi@gmail.com', 'test email', email_msg)
+    print email_msg
