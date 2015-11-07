@@ -41,12 +41,12 @@ def scrape_cljobs(search_terms, places=['sfbay', 'eugene', 'seattle', 'boise', '
         cl_jobs = [i for i in cl_jobs_generator]
 
         for job in cl_jobs:
-            if job['name'] not in seen_titles:
-                job_title = job['name'].encode('utf-8')
+            job_title = job['name'].encode('utf-8')
+            if job_title not in seen_titles: # check for seen titles
                 if filter_title(job_title):
                     job_info = [job_title, job['where'], job['url']]
                     cl_matched_jobs.append(job_info)
-                seen_titles.add(job_title) # check for seen titles
+                seen_titles.add(job_title) 
             
     return cl_matched_jobs
 
@@ -78,6 +78,51 @@ def scrape_cwea():
             pass
     return matched_jobs
 
+def get_ngrams(text, ngram_range=(1, 3)):
+    '''
+    Takes a list of words and returns a list of ngrams within the ngram range.
+    '''
+    total_ngrams = []
+    for ngram_length in range(*ngram_range):
+        ngrams = zip(*[text[i:] for i in range(ngram_length)])
+        ngram_strings = [" ".join(i) for i in ngrams]
+        total_ngrams += ngram_strings
+    return total_ngrams
+    
+def filter_title(title):
+    title = re.sub(r'[\W_-]', ' ', title)
+    tokens = title.strip().lower().split()
+    ngrams = get_ngrams(tokens)
+    for ngram in ngrams:
+        if ngram in job_kws:
+            return True
+    return False
+
+def mail(to, subject, text, attach=None):
+    msg = MIMEMultipart()
+
+    msg['From'] = gmail_user
+    msg['To'] = to
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(text))
+    if attach:
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(open(attach, 'rb').read())
+        Encoders.encode_base64(part)
+        part.add_header('Content-Disposition',
+               'attachment; filename="%s"' % os.path.basename(attach))
+        msg.attach(part)
+
+    mailServer = smtplib.SMTP("smtp.gmail.com", 587)
+    mailServer.ehlo()
+    mailServer.starttls()
+    mailServer.ehlo()
+    mailServer.login(gmail_user, gmail_pwd)
+    mailServer.sendmail(gmail_user, to, msg.as_string())
+    mailServer.close()
+
+
 if __name__ == '__main__':
     # variables that need to be off-loaded to a settings.json file
     gmail_user = "EMAIL_ADDRESS"
@@ -88,7 +133,7 @@ if __name__ == '__main__':
     job_kws = ('environmental', 'environment', 'laboratory', 'lab', 'biotech', 'bio tech', 'bio-tech', 'chemist')
     
     # Run scrapers
-    job_list += scrape_cljobs(['water', 'wastewater'])
+    job_list += scrape_cljobs(['water', 'wastewater'], ['sfbay'])
     # job_list += scrape_cwea()
 
     # Compose and Email list of matched jobs
