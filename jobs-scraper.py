@@ -16,7 +16,10 @@ import time
 import os
 import re
 import smtplib
+import requests
+from bs4 import BeautifulSoup
 from craigslist import CraigslistJobs
+from urlparse import urljoin
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
 from email.MIMEText import MIMEText
@@ -61,9 +64,11 @@ def scrape_cwea():
     matched_jobs = []
     
     base_url = 'http://cwea.org'
-    cwea_jobpage = requests.get(base_url + '/e-bulletin/jobs.cfm').text
+    cwea_jobpage = requests.get(urljoin(base_url, '/e-bulletin/jobs.cfm')).text
     cwea_soup = BeautifulSoup(cwea_jobpage, 'html.parser')
     jobs = cwea_soup.find_all('td', {"class":"body_text_med"})
+
+    print cwea_jobpage
     
     for job in jobs:
         try:
@@ -71,7 +76,8 @@ def scrape_cwea():
             full_title = link.text
             if filter_title(full_title.rstrip().split('\n')[0]):
                 title = full_title.rstrip().replace('\n', ' ')
-                link = base_url + link.get('href')
+                link = urljoin(base_url, link.get('href'))
+                print link
                 where = job.find('b').text.lstrip('(')
                 matched_jobs.append([title, where, link]) # should probably make this a dict to standardize things
         except AttributeError:
@@ -133,8 +139,8 @@ if __name__ == '__main__':
     job_kws = ('environmental', 'environment', 'laboratory', 'lab', 'biotech', 'bio tech', 'bio-tech', 'chemist')
     
     # Run scrapers
-    job_list += scrape_cljobs(['water', 'wastewater'], ['sfbay'])
-    # job_list += scrape_cwea()
+    # job_list += scrape_cljobs(['water', 'wastewater'], ['sfbay'])
+    job_list += scrape_cwea()
 
     # Compose and Email list of matched jobs
     email_msg = ''
