@@ -128,6 +128,9 @@ def mail(to, subject, text, attach=None):
     mailServer.sendmail(gmail_user, to, msg.as_string())
     mailServer.close()
 
+def save_settings(filename, path):
+
+def load_settings(filename, path):
 
 if __name__ == '__main__':
     # variables that need to be off-loaded to a settings.json file
