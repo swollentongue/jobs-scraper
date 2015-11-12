@@ -5,7 +5,8 @@ Date: Dec, 2015
 Simple water and wastewater laboratory jobs scraper.
 
 TODO:
-* create functionality for saving/ignoring seen jobs
+* create functionality for saving/ignoring seen jobs -- done somewhat
+* refactor scrapers into their own subclasses
 * Add Government Jobs and Indeed scrapers
 * Add more robust decision logic for which jobs to choose
     (perhaps using the posted job description)
@@ -14,6 +15,7 @@ TODO:
 
 import random
 import time
+import io
 import os
 import re
 import requests
@@ -29,11 +31,35 @@ class JobsScraper(object):
         home_dir = os.path.expanduser("~")
         self.settings_dir = os.path.join(home_dir, '.jobs-scraper')
 
+        # Create the default settings directory on init
+        try: 
+            os.makedirs(self.settings_dir)
+        except OSError:
+            if not os.path.isdir(self.settings_dir):
+                raise
+
     def scrape_jobs(self):
         job_list = []
-        job_list += self.scrape_cl(self.search_terms, ['sfbay', 'eugene'])
-        # job_list += self.scrape_cwea()
+        job_list += self.scrape_cl(self.search_terms)
+        job_list += self.scrape_cwea()
         return job_list
+
+    def load_titles(self, tfile):
+        title_filename = os.path.join(self.settings_dir, tfile)
+        try:
+            with io.open(title_filename, 'r', encoding='utf-8') as fr:
+                return set([line.strip() for line in fr])
+        except IOError:
+            return set()
+
+    def save_titles(self, tfile, titles):
+        sdir = self.settings_dir
+        title_filename = os.path.join(sdir, tfile)
+
+        with io.open(title_filename, 'w') as fw:
+            for title in titles:
+                fw.write(unicode(title) + '\n')
+
 
     def get_ngrams(self, text, ngram_range=(1, 3)):
         '''
@@ -46,6 +72,7 @@ class JobsScraper(object):
             ngram_strings = [" ".join(i) for i in ngrams]
             total_ngrams += ngram_strings
         return total_ngrams
+
 
     def filter_title(self, title):
         title = re.sub(r'[\W_-]', ' ', title)
@@ -105,22 +132,39 @@ class JobsScraper(object):
         base_url = 'http://cwea.org'
         cwea_jobpage = requests.get(base_url + '/e-bulletin/jobs.cfm').text
         cwea_soup = BeautifulSoup(cwea_jobpage, 'html.parser')
+        seen_jobs = self.load_titles('cwea_jobs')
         jobs = cwea_soup.find_all('td', {"class": "body_text_med"})
+        id_re = re.compile(r'([0-9]+)$')
 
         for job in jobs:
             try:
                 link = job.find('a')
-                full_title = link.text
-                if self.filter_title(full_title.rstrip().split('\n')[0]):
-                    title = full_title.rstrip().replace('\n', ' ')
-                    link = base_url + link.get('href')
-                    where = job.find('b').text.lstrip('(')
-                    # should probably make this a dict to standardize things
-                    matched_jobs.append([title, where, link])
+                full_title = link.text.encode('utf-8')
+                job_id = id_re.search(link.get('href')).group(1)
+
+                if job_id not in seen_jobs:
+                    seen_jobs.add(job_id)
+                    if self.filter_title(full_title.rstrip().split('\n')[0]):
+                        title = full_title.rstrip().replace('\n', ' ')
+                        where = job.find('b').text.lstrip('(')
+                        link_url = base_url + link.get('href')
+                        # should probably make this a dict to standardize things
+                        matched_jobs.append([title, where, link_url])
             except AttributeError:
                 pass
 
+        self.save_titles('cwea_jobs', seen_jobs)
         return matched_jobs
 
     def scrape_indeed(self):
         pass
+
+
+if __name__ == '__main__':
+    js = JobsScraper(['water', 'wastewater'],
+                     ['environmental', 'environment', 'laboratory',
+                      'lab', 'biotech', 'bio tech', 'bio-tech',
+                       'chemist'])
+    jobs = js.scrape_jobs()
+    for job in jobs:
+        print ' | '.join(job)
