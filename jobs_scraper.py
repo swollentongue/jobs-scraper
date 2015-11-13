@@ -40,7 +40,7 @@ class JobsScraper(object):
 
     def scrape_jobs(self):
         job_list = []
-        job_list += self.scrape_cl(self.search_terms)
+        job_list += self.scrape_cl()
         job_list += self.scrape_cwea()
         return job_list
 
@@ -83,17 +83,13 @@ class JobsScraper(object):
                 return True
         return False
 
-    def scrape_cl(self, terms,
-                  places=['sfbay',
-                          'eugene',
-                          'seattle',
-                          'boise',
-                          'slo',
-                          'monterey']):
+    def scrape_cl(self, places=None):
         '''
         Scrapes multiple CL sites for a list of jobs
         Requires python-craigslist -- CraigslistJobs class
         '''
+        if not places:
+            places = ['sfbay', 'eugene', 'seattle', 'boise', 'slo', 'monterey']
 
         cl_matched_jobs = []
         seen_titles = set()
@@ -156,8 +152,20 @@ class JobsScraper(object):
         self.save_titles('cwea_jobs', seen_jobs)
         return matched_jobs
 
-    def scrape_indeed(self):
-        pass
+    def scrape_indeed(self, places=None):  # should probably scaffold this into the superclass
+        base_url = 'http://www.indeed.com/jobs'
+        indeed_terms = terms if terms else ['water', 'wasterwater']
+        if not places:
+            places = ['Oakland, CA']
+
+        for place, term in [(place, term)
+                            for place in places
+                            for term in self.search_terms]:
+            search_filter = {'as_and': query, 'as_phr': '', 'as_any': '', 'as_not': '',
+                    'as_ttl': '', 'as_cmp': '', 'jt': 'all', 'st': '', 'salary': '', 'radius': 25,
+                    'l': area, 'fromage': 1, 'limit': 50, 'sort': '', 'psf': 'advsrch'}
+            time.sleep(random.randrange(1, 6))  # throttle requests
+
 
 
 if __name__ == '__main__':
