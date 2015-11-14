@@ -22,6 +22,7 @@ import requests
 import sys
 from bs4 import BeautifulSoup
 from craigslist import CraigslistJobs
+from indeed import IndeedClient
 
 
 class JobsScraper(object):
@@ -38,10 +39,11 @@ class JobsScraper(object):
             if not os.path.isdir(self.settings_dir):
                 raise
 
-    def scrape_jobs(self):
+    def scrape_jobs(self, indeed_api_key, ip_address):
         job_list = []
         job_list += self.scrape_cl()
         job_list += self.scrape_cwea()
+        job_list += self.scrape_indeed(indeed_api_key, ip_address)
         return job_list
 
     def load_titles(self, tfile):
@@ -89,7 +91,7 @@ class JobsScraper(object):
         Requires python-craigslist -- CraigslistJobs class
         '''
         if not places:
-            places = ['sfbay', 'eugene', 'seattle', 'boise', 'slo', 'monterey']
+            places = ['sfbay', 'eugene', 'seattle', 'boise', 'slo', 'monterey', 'austin']
 
         cl_matched_jobs = []
         seen_titles = set()
@@ -99,7 +101,7 @@ class JobsScraper(object):
                             for term in self.search_terms]:
             time.sleep(random.randrange(1, 6))  # throttle requests
 
-            sys.stderr.write('Searching {} for {}...'.format(place, term))
+            sys.stderr.write('Searching {} Craigslist for {}...'.format(place, term))
             cl_jobsearch = CraigslistJobs(site=place,
                                           filters={'query': term,
                                                    'posted_today': '1'})
@@ -152,20 +154,40 @@ class JobsScraper(object):
         self.save_titles('cwea_jobs', seen_jobs)
         return matched_jobs
 
-    def scrape_indeed(self, places=None):  # should probably scaffold this into the superclass
-        base_url = 'http://www.indeed.com/jobs'
-        indeed_terms = terms if terms else ['water', 'wasterwater']
+    def scrape_indeed(self, api_key, ip_address, places=None):
+        indeed_client = IndeedClient(api_key)
+        indeed_matched_jobs = []
+        seen_jobs = self.load_titles('indeed_jobs')
+
         if not places:
-            places = ['Oakland, CA']
+            places = ['oakland, ca', 'eugene, or', 'seattle, wa', 'boise, id', 'san luis obispo, ca', 'austin, tx']
 
         for place, term in [(place, term)
-                            for place in places
+                            for place in places 
                             for term in self.search_terms]:
-            search_filter = {'as_and': query, 'as_phr': '', 'as_any': '', 'as_not': '',
-                    'as_ttl': '', 'as_cmp': '', 'jt': 'all', 'st': '', 'salary': '', 'radius': 25,
-                    'l': area, 'fromage': 1, 'limit': 50, 'sort': '', 'psf': 'advsrch'}
-            time.sleep(random.randrange(1, 6))  # throttle requests
+            sys.stderr.write('Searching {} Indeed for {}... '.format(place, term))
+            time.sleep(random.randrange(1, 3))  # throttle requests
+            params = {
+                'q': term,
+                'l': place,
+                'userip': ip_address,
+                'useragent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2)",
+                'limit': 25 }
+            search_response = indeed_client.search(**params)
+            job_results = search_response['results']
+            sys.stderr.write('returned {} items\n'.format(len(job_results)))
 
+            for job in job_results:
+                job_id = job['jobkey']
+                if job_id not in seen_jobs:
+                    seen_jobs.add(job_id)
+                    job_title = job['jobtitle']
+                    if self.filter_title(job_title):
+                        indeed_matched_jobs.append([
+                            job_title, job['formattedLocationFull'], job['url'], job['snippet']])
+
+        self.save_titles('indeed_jobs', seen_jobs)
+        return indeed_matched_jobs
 
 
 if __name__ == '__main__':
