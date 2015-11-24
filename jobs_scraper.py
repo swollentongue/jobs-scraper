@@ -62,7 +62,6 @@ class JobsScraper(object):
             for title in titles:
                 fw.write(unicode(title) + '\n')
 
-
     def get_ngrams(self, text, ngram_range=(1, 3)):
         '''
         Takes a list of words and returns a list of ngrams
@@ -74,7 +73,6 @@ class JobsScraper(object):
             ngram_strings = [" ".join(i) for i in ngrams]
             total_ngrams += ngram_strings
         return total_ngrams
-
 
     def filter_title(self, title):
         title = re.sub(r'[\W_-]', ' ', title)
@@ -91,7 +89,7 @@ class JobsScraper(object):
         Requires python-craigslist -- CraigslistJobs class
         '''
         if not places:
-            places = ['sfbay', 'eugene', 'seattle', 'boise', 'slo', 'monterey', 'austin']
+            places = ['sfbay', 'sacramento', 'slo', 'mendocino', 'humboldt', 'eugene', 'portland', 'seattle', 'spokane', 'bellingham', 'boise',  'monterey', 'austin', 'minneapolis', 'raleigh', 'chicago']
 
         cl_matched_jobs = []
         seen_titles = set()
@@ -99,7 +97,7 @@ class JobsScraper(object):
         for place, term in [(place, term)
                             for place in places
                             for term in self.search_terms]:
-            time.sleep(random.randrange(1, 6))  # throttle requests
+            time.sleep(random.randrange(1, 10))  # throttle requests
 
             sys.stderr.write('Searching {} Craigslist for {}...'.format(place, term))
             cl_jobsearch = CraigslistJobs(site=place,
@@ -160,13 +158,13 @@ class JobsScraper(object):
         seen_jobs = self.load_titles('indeed_jobs')
 
         if not places:
-            places = ['oakland, ca', 'eugene, or', 'seattle, wa', 'boise, id', 'san luis obispo, ca', 'austin, tx']
+            places = ['oakland, ca', 'sacramento, ca', '' 'eugene, or', 'seattle, wa', 'boise, id', 'san luis obispo, ca', 'austin, tx', 'minneapolis, mn', 'chicago, il']
 
         for place, term in [(place, term)
                             for place in places 
                             for term in self.search_terms]:
             sys.stderr.write('Searching {} Indeed for {}... '.format(place, term))
-            time.sleep(random.randrange(1, 3))  # throttle requests
+            # time.sleep(random.randrange(1, 3))  # throttle requests
             params = {
                 'q': term,
                 'l': place,
