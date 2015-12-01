@@ -41,9 +41,15 @@ class JobsScraper(object):
 
     def scrape_jobs(self, indeed_api_key, ip_address):
         job_list = []
-        job_list += self.scrape_cl()
+        job_list += self.scrape_cl(['sfbay', 'sacramento', 'slo', 
+            'mendocino', 'humboldt', 'eugene', 'portland', 'seattle', 
+            'spokane', 'bellingham', 'boise',  'monterey', 'austin', 
+            'minneapolis', 'raleigh', 'chicago'])
         job_list += self.scrape_cwea()
-        job_list += self.scrape_indeed(indeed_api_key, ip_address)
+        job_list += self.scrape_indeed(indeed_api_key, ip_address, 
+            ['oakland, ca', 'sacramento, ca', 'san luis obispo, ca', 'monterey, ca', 
+            'eugene, or', 'portland, or', 'seattle, wa', 'spokane, wa', 'boise, id',
+            'austin, tx', 'minneapolis, mn', 'raleigh, nc', 'chicago, il'])
         return job_list
 
     def load_titles(self, tfile):
@@ -89,7 +95,7 @@ class JobsScraper(object):
         Requires python-craigslist -- CraigslistJobs class
         '''
         if not places:
-            places = ['sfbay', 'sacramento', 'slo', 'mendocino', 'humboldt', 'eugene', 'portland', 'seattle', 'spokane', 'bellingham', 'boise',  'monterey', 'austin', 'minneapolis', 'raleigh', 'chicago']
+            places = ['sfbay']
 
         cl_matched_jobs = []
         seen_titles = set()
@@ -99,20 +105,20 @@ class JobsScraper(object):
                             for term in self.search_terms]:
             time.sleep(random.randrange(1, 10))  # throttle requests
 
-            sys.stderr.write('Searching {} Craigslist for {}...'.format(place, term))
+            sys.stdout.write('Searching {} Craigslist for {}...'.format(place, term))
             cl_jobsearch = CraigslistJobs(site=place,
                                           filters={'query': term,
                                                    'posted_today': '1'})
             cl_jobs_generator = cl_jobsearch.get_results(sort_by='newest')
             cl_jobs = [i for i in cl_jobs_generator]
-            sys.stderr.write('\t*Found {} items\n'.format(str(len(cl_jobs))))
+            sys.stdout.write('\t*Found {} items\n'.format(str(len(cl_jobs))))
 
             for job in cl_jobs:
                 job_title = job['name'].encode('utf-8')
+                job_info = [job_title, job['where'], job['url']]
                 # check for seen titles
                 if job_title not in seen_titles:
                     if self.filter_title(job_title):
-                        job_info = [job_title, job['where'], job['url']]
                         cl_matched_jobs.append(job_info)
                     seen_titles.add(job_title)
 
@@ -158,7 +164,7 @@ class JobsScraper(object):
         seen_jobs = self.load_titles('indeed_jobs')
 
         if not places:
-            places = ['oakland, ca', 'sacramento, ca', '' 'eugene, or', 'seattle, wa', 'boise, id', 'san luis obispo, ca', 'austin, tx', 'minneapolis, mn', 'chicago, il']
+            places = ['san francisco, ca']
 
         for place, term in [(place, term)
                             for place in places 
@@ -173,7 +179,7 @@ class JobsScraper(object):
                 'limit': 25 }
             search_response = indeed_client.search(**params)
             job_results = search_response['results']
-            sys.stderr.write('returned {} items\n'.format(len(job_results)))
+            sys.stdout.write('returned {} items\n'.format(len(job_results)))
 
             for job in job_results:
                 job_id = job['jobkey']
