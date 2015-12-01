@@ -26,14 +26,13 @@ from indeed import IndeedClient
 
 
 class JobsScraper(object):
-    def __init__(self, search_terms, matching_terms):
-        self.matching_terms = set(matching_terms)
-        self.search_terms = search_terms
-        home_dir = os.path.expanduser("~")
-        self.settings_dir = os.path.join(home_dir, '.jobs-scraper')
+    def __init__(self, search_filters):
+        self.filters = search_filters
+        self.home_dir = os.path.expanduser("~")
+        self.settings_dir = os.path.join(self.home_dir, '.jobs-scraper')
 
         # Create the default settings directory on init
-        try: 
+        try:
             os.makedirs(self.settings_dir)
         except OSError:
             if not os.path.isdir(self.settings_dir):
@@ -80,12 +79,14 @@ class JobsScraper(object):
             total_ngrams += ngram_strings
         return total_ngrams
 
-    def filter_title(self, title):
+    def filter_title(self, title, search_term):
+        if search_term == None:
+            return True
         title = re.sub(r'[\W_-]', ' ', title)
         tokens = title.strip().lower().split()
         ngrams = self.get_ngrams(tokens)
         for ngram in ngrams:
-            if ngram in self.matching_terms:
+            if ngram in search_term:
                 return True
         return False
 
@@ -102,7 +103,7 @@ class JobsScraper(object):
 
         for place, term in [(place, term)
                             for place in places
-                            for term in self.search_terms]:
+                            for term in self.filters.keys()]:
             time.sleep(random.randrange(1, 10))  # throttle requests
 
             sys.stdout.write('Searching {} Craigslist for {}...'.format(place, term))
@@ -111,14 +112,14 @@ class JobsScraper(object):
                                                    'posted_today': '1'})
             cl_jobs_generator = cl_jobsearch.get_results(sort_by='newest')
             cl_jobs = [i for i in cl_jobs_generator]
-            sys.stdout.write('\t*Found {} items\n'.format(str(len(cl_jobs))))
+            sys.stdout.write('\t*Found {} items\n'.format(str(len(cl_jobs))) + '\n')
 
             for job in cl_jobs:
                 job_title = job['name'].encode('utf-8')
                 job_info = [job_title, job['where'], job['url']]
                 # check for seen titles
                 if job_title not in seen_titles:
-                    if self.filter_title(job_title):
+                    if self.filter_title(job_title, self.filters[term]):
                         cl_matched_jobs.append(job_info)
                     seen_titles.add(job_title)
 
@@ -137,7 +138,13 @@ class JobsScraper(object):
         seen_jobs = self.load_titles('cwea_jobs')
         jobs = cwea_soup.find_all('td', {"class": "body_text_med"})
         id_re = re.compile(r'([0-9]+)$')
-
+        
+        try:
+            job_filters = self.filters['wastewater']
+            sys.stdout.write('it works.\n')
+        except KeyError:
+            job_filters = ['laboratory', 'quality', 'testing']
+        
         for job in jobs:
             try:
                 link = job.find('a')
@@ -146,7 +153,8 @@ class JobsScraper(object):
 
                 if job_id not in seen_jobs:
                     seen_jobs.add(job_id)
-                    if self.filter_title(full_title.rstrip().split('\n')[0]):
+                    if self.filter_title(full_title.rstrip().split('\n')[0],
+                                    job_filters):
                         title = full_title.rstrip().replace('\n', ' ')
                         where = job.find('b').text.lstrip('(')
                         link_url = base_url + link.get('href')
@@ -168,7 +176,7 @@ class JobsScraper(object):
 
         for place, term in [(place, term)
                             for place in places 
-                            for term in self.search_terms]:
+                            for term in self.filters.keys()]:
             sys.stderr.write('Searching {} Indeed for {}... '.format(place, term))
             # time.sleep(random.randrange(1, 3))  # throttle requests
             params = {
@@ -176,7 +184,8 @@ class JobsScraper(object):
                 'l': place,
                 'userip': ip_address,
                 'useragent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2)",
-                'limit': 25 }
+                'limit': 25,
+                'fromage': 1 }
             search_response = indeed_client.search(**params)
             job_results = search_response['results']
             sys.stdout.write('returned {} items\n'.format(len(job_results)))
@@ -186,7 +195,7 @@ class JobsScraper(object):
                 if job_id not in seen_jobs:
                     seen_jobs.add(job_id)
                     job_title = job['jobtitle']
-                    if self.filter_title(job_title):
+                    if self.filter_title(job_title, self.filters[term]):
                         indeed_matched_jobs.append([
                             job_title, job['formattedLocationFull'], job['url'], job['snippet']])
 
