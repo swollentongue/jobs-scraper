@@ -43,12 +43,12 @@ class JobsScraper(object):
         job_list += self.scrape_cl(['sfbay', 'sacramento', 'slo', 
             'mendocino', 'humboldt', 'eugene', 'portland', 'seattle', 
             'spokane', 'bellingham', 'boise',  'monterey', 'austin', 
-            'minneapolis', 'raleigh', 'chicago'])
+            'minneapolis', 'raleigh', 'chicago', 'atlanta'])
         job_list += self.scrape_cwea()
         job_list += self.scrape_indeed(indeed_api_key, ip_address, 
             ['oakland, ca', 'sacramento, ca', 'san luis obispo, ca', 'monterey, ca', 
             'eugene, or', 'portland, or', 'seattle, wa', 'spokane, wa', 'boise, id',
-            'austin, tx', 'minneapolis, mn', 'raleigh, nc', 'chicago, il'])
+            'austin, tx', 'minneapolis, mn', 'raleigh, nc', 'chicago, il', 'atlanta, ga'])
         return job_list
 
     def load_titles(self, tfile):
@@ -184,8 +184,7 @@ class JobsScraper(object):
                 'l': place,
                 'userip': ip_address,
                 'useragent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2)",
-                'limit': 25,
-                'fromage': 1 }
+                'limit': 25}
             search_response = indeed_client.search(**params)
             job_results = search_response['results']
             sys.stdout.write('returned {} items\n'.format(len(job_results)))
