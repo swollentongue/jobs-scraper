@@ -1,13 +1,14 @@
 '''
 Author: swollentongue (at) gmail.com
-Date: Dec, 2015
+Date: Dec, 2016
 
-Simple water and wastewater laboratory jobs scraper.
+Simple jobs scraper.
 
 TODO:
+* refactor to a more generalized/OOP codebase (IN PROGRESS) 
 * create functionality for saving/ignoring seen jobs -- done somewhat
-* refactor scrapers into their own subclasses
-* Add Government Jobs and Indeed scrapers
+* refactor scrapers into their own subclasses (IN PROGRESS)
+* Add Government Jobs and Indeed scrapers (IN PROGRESS)
 * Add more robust decision logic for which jobs to choose
     (perhaps using the posted job description)
 
@@ -23,6 +24,12 @@ import sys
 from bs4 import BeautifulSoup
 from craigslist import CraigslistJobs
 from indeed import IndeedClient
+
+
+def build_regex_from_list(filter_list):
+    '''Takes list of strings, returns an inclusive regex object from a list of strings'''
+    regex_string = '|'.join(filter_list)
+    return re.compile(regex_string, re.I)
 
 
 class JobsScraper(object):
@@ -184,7 +191,8 @@ class JobsScraper(object):
                 'l': place,
                 'userip': ip_address,
                 'useragent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2)",
-                'limit': 25}
+                'limit': 25,
+                'fromage': 1 }
             search_response = indeed_client.search(**params)
             job_results = search_response['results']
             sys.stdout.write('returned {} items\n'.format(len(job_results)))
@@ -201,12 +209,60 @@ class JobsScraper(object):
         self.save_titles('indeed_jobs', seen_jobs)
         return indeed_matched_jobs
 
+class IndeedScraper:
+    '''
+    Scrapes indeed and filters on job titles.
+
+    Usage:
+    Create a search: filter pair using dictionaries:
+        search_filter = {'python': ['developer', 'django']}
+        
+        (The key defines the base query and the value should contain a list of strings that
+        further filter the titles of the query. This allows you to cast a wide net with the
+        base search, while narrowing down the results to specific job title/keywords.)
+
+    instantiate the class:
+        indeed_jobs = IndeedScraper(search_filter, locs=['San Francisco, CA', 'Seattle, WA'])
+
+    Scrape indeed using the scrape_jobs() method. This method returns an iterable containing 
+    all the jobs in the search query that meet filter requirements.
+
+        for job in indeed_jobs.scrape(title_only=True):
+            print(job['title'])
+    '''
+
+    BASEURL = 'http://www.indeed.com/jobs'
+
+    def __init__(self, filter, locs=['Oakland, CA'], ):
+        self.filter = filter
+        self.locations = locs
+
+
+    def parse_jobs(self, title_only=True):
+        '''Scrapes indeed, yields dictionary respresentations of listings'''
+        baseurl = 'http://www.indeed.com/jobs'
+
+        for search_term, filter_items in filter.items():
+            regex_filter = build_regex_from_list(filter_items)
+            payload = {'as_ttl': search_term, 'l': 'Oakland, CA', 'fromage': 1, 'limit': 50, 'psf': 'advsrch'}
+            r = requests.get(baseurl, params=payload)
+            soup = BeautifulSoup(r.text, 'lxml')
+
+            job_posts = soup.find(id='resultsCol').findAll('div', {'class': '  row  result'})
+
+            for posting in job_posts:
+                title = posting.find('h2', {'class': 'jobtitle'})
+                if regex_filter.search(title.text):
+                    res =  {}
+                    res['title'] = title.text.strip()
+                    res['url'] = 'http://www.indeed.com' + title.a.get('href')
+                    res['snippet'] = posting.find('span', {'class': 'summary'}).text.strip()
+                    res['company'] = posting.find('span', {'class': 'company'}).text.strip()
+                    yield res
+
+
+    
+
 
 if __name__ == '__main__':
-    js = JobsScraper(['water', 'wastewater'],
-                     ['environmental', 'environment', 'laboratory',
-                      'lab', 'biotech', 'bio tech', 'bio-tech',
-                       'chemist'])
-    jobs = js.scrape_jobs()
-    for job in jobs:
-        print ' | '.join(job)
+    filter = {'data': ['data engineer', 'data analyst']}
